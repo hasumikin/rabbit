@@ -103,10 +103,10 @@ module Rabbit
           options.index_mode = false
           options.initial_slide = 0
           options.geometry = nil
-          options.width = 800
-          options.height = 600
-          options.paper_width = nil
-          options.paper_height = nil
+          options.width = ENV["WIDTH"]&.to_i || 800
+          options.height = ENV["HEIGHT"]&.to_i || 600
+          options.paper_width = options.width
+          options.paper_height = options.height
           options.saved_image_base_name = nil
           options.saved_image_type = "png"
           options.output_html = false
