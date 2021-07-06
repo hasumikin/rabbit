@@ -61,12 +61,19 @@ match("**", CustomTag) do |tags|
       find_target.call(tag).prop_set("size", @xx_large_font_size)
     when /\A(normal|oblique|italic)\z/
       find_target.call(tag).prop_set("style", $1)
-    when /\Amargin-(top|bottom|left|right)(?:\s*\*\s*(\d+))?\z/
+    when /\Amargin-(top|bottom|left|right)(?:\s*\*\s*([-\d.]+))?\z/
       target = "margin_#{$1}"
-      scale = Integer($2 || 1)
+      scale = Float($2 || 1)
       outer_block = find_outer_block.call(tag)
       current_value = outer_block.send(target)
       outer_block.send("#{target}=", current_value + (@space * scale))
+    when /\Awrap-(.+)\z/
+      wrap = $1
+      find_target.call(tag).wrap_mode = wrap
+    when /\Ajustify?\z/
+      find_target.call(tag).justify = true
+    when /\Ano-justify?\z/
+      find_target.call(tag).justify = false
     else
       handler = find_handler.call(tag)
       if handler

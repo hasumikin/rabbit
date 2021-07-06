@@ -1,7 +1,23 @@
+# Copyright (C) 2004-2020  Sutou Kouhei <kou@cozmixng.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 require "gdk_pixbuf2"
 
-require "rabbit/utils"
 require "rabbit/image-data-loader"
+require "rabbit/properties"
 
 module Rabbit
   module ImageManipulable
@@ -9,12 +25,16 @@ module Rabbit
     class Base
       extend ModuleLoader
 
-      attr_reader :width, :height, :original_width, :original_height
+      attr_reader :filename
+      attr_reader :properties
+      attr_reader :original_width
+      attr_reader :original_height
       attr_reader :animation
 
       def initialize(filename, props)
         @filename = filename
-        @props = normalize_props(props)
+        @properties = Properties.new(props)
+        initialize_keep_ratio
         @animation = nil
         @animation_iterator = nil
         @animation_timeout = nil
@@ -24,29 +44,57 @@ module Rabbit
       end
 
       def [](key)
-        @props[normalize_prop_key(key)]
+        @properties[key]
       end
 
       def []=(key, value)
-        @props[normalize_prop_key(key)] = value
+        @properties[key] = value
       end
 
-      def keep_ratio
-        self["keep_ratio"]
+      def keep_ratio?
+        @properties.keep_ratio
       end
+      # For backward compatibility
+      alias_method :keep_ratio, :keep_ratio?
 
       def keep_ratio=(value)
-        self["keep_ratio"] = value
+        @properties.keep_ratio = value
       end
 
       def pixbuf
         @pixbuf
       end
 
+      def width
+        (relative_clip_width&.resolve(@width) || @width) -
+          (relative_clip_x&.resolve(@width) || 0)
+      end
+
+      def height
+        (relative_clip_height&.resolve(@height) || @height) -
+          (relative_clip_y&.resolve(@height) || 0)
+      end
+
+      def relative_clip_x
+        @properties.get_relative_size("relative_clip_x", @filename)
+      end
+
+      def relative_clip_y
+        @properties.get_relative_size("relative_clip_y", @filename)
+      end
+
+      def relative_clip_width
+        @properties.get_relative_size("relative_clip_width", @filename)
+      end
+
+      def relative_clip_height
+        @properties.get_relative_size("relative_clip_height", @filename)
+      end
+
       def resize(w, h)
         if w.nil? and h.nil?
           return
-        elsif keep_ratio
+        elsif keep_ratio?
           if w and h.nil?
             h = (original_height * w.to_f / original_width).ceil
           elsif w.nil? and h
@@ -65,10 +113,7 @@ module Rabbit
       end
 
       def draw(canvas, x, y, params={})
-        default_params = {
-          :width => width,
-          :height => height,
-        }
+        default_params = default_draw_params(x, y)
         target_pixbuf = pixbuf
         if @animation_iterator
           @animation_iterator.advance
@@ -79,20 +124,15 @@ module Rabbit
       end
 
       private
-      def normalize_props(props)
-        normalized_props = {}
-        (props || {}).each do |key, value|
-          normalized_props[normalize_prop_key(key)] = value
+      def initialize_keep_ratio
+        return unless @properties["keep_ratio"].nil?
+        # For backward compatibility
+        keep_scale = @properties["keep_scale"]
+        if keep_scale.nil?
+          @properties["keep_ratio"] = true
+        else
+          @properties["keep_ratio"] = keep_scale
         end
-        keep_ratio_key = normalize_prop_key("keep_ratio")
-        unless normalized_props.has_key?(keep_ratio_key)
-          normalized_props[keep_ratio_key] = true
-        end
-        normalized_props
-      end
-
-      def normalize_prop_key(key)
-        key.to_s.gsub(/-/, "_")
       end
 
       def load_data(data)
@@ -127,6 +167,37 @@ module Rabbit
             # update_animation_timeout(canvas)
             GLib::Source::REMOVE
           end
+        end
+      end
+
+      def default_draw_params(x, y)
+        _relative_clip_x = relative_clip_x
+        _relative_clip_y = relative_clip_y
+        _relative_clip_width = relative_clip_width
+        _relative_clip_height = relative_clip_height
+        if _relative_clip_x or
+           _relative_clip_y or
+           _relative_clip_width or
+           _relative_clip_height
+          clip_x = _relative_clip_x&.resolve(@width) || 0
+          clip_y = _relative_clip_y&.resolve(@height) || 0
+          clip_width = _relative_clip_width&.resolve(@width) || @width
+          clip_height = _relative_clip_height&.resolve(@height) || @height
+          uncliped_width = width - (clip_width - clip_x) + @width
+          uncliped_height = height - (clip_height - clip_y) + @height
+          {
+            width: uncliped_width,
+            height: uncliped_height,
+            clip_x: x + clip_x,
+            clip_y: y + clip_y,
+            clip_width: clip_width,
+            clip_height: clip_height,
+          }
+        else
+          {
+            width: width,
+            height: height,
+          }
         end
       end
     end

@@ -14,7 +14,6 @@ module Rabbit
       include TextRenderer
 
       attr_reader :filename
-      attr_reader :normalized_width, :normalized_height
       attr_reader :relative_width, :relative_height
       attr_reader :relative_margin_top, :relative_margin_bottom
       attr_reader :relative_margin_left, :relative_margin_right
@@ -34,7 +33,6 @@ module Rabbit
           instance_variable_set("@#{name}", true_value?(prop[name]))
         end
         %w(width height
-           normalized_width normalized_height
            relative_width relative_height
            relative_margin_top relative_margin_bottom
            relative_margin_left relative_margin_right
@@ -44,7 +42,7 @@ module Rabbit
           begin
             instance_variable_set("@#{name}", prop[name] && Integer(prop[name]))
           rescue ArgumentError
-            raise InvalidImageSizeError.new(filename, name, prop[name])
+            raise InvalidSizeError.new(filename, name, prop[name])
           end
         end
 
@@ -126,12 +124,10 @@ module Rabbit
           iw = base_w
           ih = base_h
         else
-          nw = make_normalized_size(@normalized_width)
-          nh = make_normalized_size(@normalized_height)
           rw = make_relative_size(@relative_width, base_w)
           rh = make_relative_size(@relative_height, base_h)
-          iw = nw || rw || base_w
-          ih = nh || rh || base_h
+          iw = rw || base_w
+          ih = rh || base_h
         end
         resize(iw, ih)
       end
@@ -149,10 +145,6 @@ module Rabbit
           @width = w
           @height = h
         end
-      end
-
-      def make_normalized_size(size)
-        size && screen_size(size)
       end
 
       def make_relative_size(size, parent_size)
