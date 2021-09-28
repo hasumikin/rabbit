@@ -2,13 +2,16 @@ require "forwardable"
 require "rabbit/gtk"
 require "rexml/text"
 
+begin
+  require "vte3"
+rescue LoadError
+end
+
 require "rabbit/rabbit"
 require "rabbit/utils"
 
 module Rabbit
-
   class Frame
-
     include ScreenInfo
     extend Forwardable
 
@@ -31,6 +34,9 @@ module Rabbit
       @logger = logger
       @canvas = canvas
       @geometry = nil
+      @notebook = nil
+      @terminal = nil
+      @running = true
     end
 
     def destroyed?
@@ -38,6 +44,7 @@ module Rabbit
     end
 
     def quit
+      @running = false
       @window.destroy unless destroyed?
       @window = nil
       true
@@ -87,6 +94,8 @@ module Rabbit
       init_window(width, height, window_type)
       @fullscreen = false
       @main_window = main_window
+      @terminal.show if @terminal
+      @notebook.show if @notebook
       @window.show
       @canvas.post_init_gui
     end
@@ -99,6 +108,21 @@ module Rabbit
       true
     end
 
+    def toggle_terminal
+      return if @terminal.nil?
+      terminal_page = @notebook.page_num(@terminal)
+      if @notebook.current_page == terminal_page
+        @notebook.current_page = 0
+      else
+        @notebook.current_page = terminal_page
+      end
+    end
+
+    def in_terminal?
+      return false if @terminal.nil?
+      @notebook.current_page == @notebook.page_num(@terminal)
+    end
+
     private
     def init_window(width, height, window_type=nil)
       window_type ||= :toplevel
@@ -106,9 +130,29 @@ module Rabbit
       @window.set_default_size(width, height)
       @window.parse_geometry(@geometry) if @geometry
       @window.set_app_paintable(true)
+      if defined?(Vte::Terminal)
+        init_notebook
+      end
       set_window_signal
       setup_dnd
-      @canvas.attach_to(self, @window)
+      @canvas.attach_to(self, @window, @notebook)
+      if defined?(Vte::Terminal)
+        init_terminal
+      end
+    end
+
+    def init_notebook
+      @notebook = Gtk::Notebook.new
+      @notebook.show_tabs = false
+      provider = Gtk::CssProvider.new
+      provider.load(data: <<-CSS)
+        notebook {
+          border-width: 0px;
+        }
+      CSS
+      @notebook.style_context.add_provider(provider,
+                                           Gtk::StyleProvider::PRIORITY_USER)
+      @window.add(@notebook)
     end
 
     def set_window_signal
@@ -160,6 +204,47 @@ module Rabbit
         true
       end
     end
+
+    def init_terminal
+      @terminal = Vte::Terminal.new
+      # TODO: Support theme
+      terminal_font_description = ENV["RABBIT_TERMINAL_FONT_DESCRIPTION"]
+      if terminal_font_description
+        @terminal.font_desc =
+          Pango::FontDescription.new(terminal_font_description)
+      end
+      terminal_color_foreground = ENV["RABBIT_TERMINAL_COLOR_FOREGROUND"]
+      if terminal_color_foreground
+        @terminal.color_foreground = terminal_color_foreground
+      end
+      terminal_color_background = ENV["RABBIT_TERMINAL_COLOR_BACKGROUND"]
+      if terminal_color_background
+        @terminal.color_background = terminal_color_background
+      end
+      @terminal.enable_sixel = true if @terminal.respond_to?(:enable_sixel=)
+      @notebook.add(@terminal)
+      pid = nil
+      in_terminal = false
+      @notebook.signal_connect(:switch_page) do |_, page,|
+        if page == @terminal
+          if @running
+            pid = @terminal.spawn if pid.nil?
+            @canvas.pre_terminal unless in_terminal
+            in_terminal = true
+          end
+        else
+          @canvas.post_terminal if in_terminal
+          in_terminal = false
+        end
+      end
+      @terminal.signal_connect(:child_exited) do
+        pid = nil
+        terminal_page = @notebook.page_num(@terminal)
+        if @notebook.current_page == terminal_page
+          @canvas.activate("ToggleTerminal")
+        end
+      end
+    end
   end
 
   class NullFrame
@@ -184,10 +269,16 @@ module Rabbit
     def iconify_available?
       false
     end
+
+    def toggle_terminal
+    end
+
+    def in_terminal?
+      false
+    end
   end
 
   class EmbedFrame < Frame
-
     def update_title(new_title)
     end
 
@@ -196,6 +287,13 @@ module Rabbit
     end
 
     def iconify_available?
+      false
+    end
+
+    def toggle_terminal
+    end
+
+    def in_terminal?
       false
     end
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2017  Kouhei Sutou <kou@cozmixng.org>
+# Copyright (C) 2012-2021  Sutou Kouhei <kou@cozmixng.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,12 +17,11 @@
 require "date"
 require "time"
 
-require "yaml"
-
 require "rabbit/gettext"
 require "rabbit/logger"
 require "rabbit/author-configuration"
 require "rabbit/path-manipulatable"
+require "rabbit/yaml-loader"
 
 module Rabbit
   class SlideConfiguration
@@ -41,11 +40,12 @@ module Rabbit
     attr_accessor :licenses
     attr_accessor :slideshare_id
     attr_accessor :speaker_deck_id
-    attr_accessor :ustream_id
     attr_accessor :vimeo_id
     attr_accessor :youtube_id
     attr_writer :version
     attr_accessor :author
+    attr_accessor :width
+    attr_accessor :height
     def initialize(logger=nil)
       @logger = logger || Logger.default
       clear
@@ -65,7 +65,7 @@ module Rabbit
 
     def load
       return unless File.exist?(path)
-      conf = YAML.load(File.read(path))
+      conf = YAMLLoader.load(File.read(path))
       clear
       merge!(conf)
     rescue
@@ -94,10 +94,11 @@ module Rabbit
       @licenses          = []
       @slideshare_id     = nil
       @speaker_deck_id   = nil
-      @ustream_id        = nil
       @vimeo_id          = nil
       @youtube_id        = nil
       @author            = nil
+      @width             = 800
+      @height            = 600
     end
 
 
@@ -113,7 +114,6 @@ module Rabbit
       @version           = conf["version"]           || @version
       @slideshare_id     = conf["slideshare_id"]     || @slideshare_id
       @speaker_deck_id   = conf["speaker_deck_id"]   || @speaker_deck_id
-      @ustream_id        = conf["ustream_id"]        || @ustream_id
       @vimeo_id          = conf["vimeo_id"]          || @vimeo_id
       @youtube_id        = conf["youtube_id"]        || @youtube_id
 
@@ -122,6 +122,9 @@ module Rabbit
 
       @author ||= AuthorConfiguration.new(@logger)
       @author.merge!(conf["author"] || {})
+
+      @width             = conf["width"]             || @width
+      @height            = conf["height"]            || @height
     end
 
     def to_hash
@@ -136,9 +139,10 @@ module Rabbit
         "licenses"          => @licenses,
         "slideshare_id"     => @slideshare_id,
         "speaker_deck_id"   => @speaker_deck_id,
-        "ustream_id"        => @ustream_id,
         "vimeo_id"          => @vimeo_id,
         "youtube_id"        => @youtube_id,
+        "width"             => @width,
+        "height"            => @height,
       }
       config["author"] = @author.to_hash if @author
       config

@@ -1,4 +1,4 @@
-# Copyright (C) 2004-2012  Kouhei Sutou <kou@cozmixng.org>
+# Copyright (C) 2021  Sutou Kouhei <kou@cozmixng.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -14,27 +14,26 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-require "rabbit/config"
-
-require "rabbit/gettext"
-require "rabbit/version"
-
-require "rabbit/error"
-
-require "rabbit/gtk"
+require "date"
+require "yaml"
 
 module Rabbit
-  TMP_DIR_NAME = ".tmp"
+  class YAMLLoader
+    class << self
+      def load(yaml)
+        new(yaml).load
+      end
+    end
 
-  @@application = nil
-  @@gui_init_procs = []
-  @@cleanup_procs = []
+    def initialize(yaml)
+      @yaml = yaml
+    end
 
-  class << self
-    def application
-      @@application ||=
-        Gtk::Application.new("org.rabbit-shocker.Rabbit",
-                             [:non_unique, :handles_command_line])
+    def load
+      YAML.safe_load(@yaml,
+                     permitted_classes: [
+                       Date, Symbol,
+                     ])
     end
   end
 end
