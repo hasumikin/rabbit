@@ -32,7 +32,7 @@ end
 target_n_slides = nil
 
 match(Slide) do |slides|
-  slides.delete_post_draw_proc_by_name(proc_name)
+  slides.delete_pre_draw_proc_by_name(proc_name)
 
   break if @image_slide_number_uninstall
 
@@ -63,7 +63,7 @@ match(Slide) do |slides|
     "weight" => "heavy",
   }
 
-  slides.add_post_draw_proc(proc_name) do |slide, canvas, x, y, w, h, simulation|
+  slides.add_pre_draw_proc(proc_name) do |slide, canvas, x, y, w, h, simulation|
     if simulation
       image_height =  canvas.height * @image_slide_number_space_ratio
       loader.resize(nil, image_height)
