@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2017  Kouhei Sutou <kou@cozmixng.org>
+# Copyright (C) 2012-2022  Sutou Kouhei <kou@cozmixng.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@ require "rabbit/gettext"
 require "rabbit/parser/pause-support"
 require "rabbit/parser/ext/blockdiag"
 require "rabbit/parser/ext/escape"
-require "rabbit/parser/ext/inline"
 require "rabbit/parser/ext/image"
+require "rabbit/parser/ext/inline"
 require "rabbit/parser/ext/rouge"
 require "rabbit/parser/ext/tex"
 
@@ -331,12 +331,14 @@ module Rabbit
         def convert_codeblock_language(element, language, content)
           case language
           when "blockdiag"
-            args = [@canvas, content]
-            Ext::Image.make_image_from_file(*args) do |src_file_path|
-              [
-                Ext::BlockDiag.make_image(src_file_path, element.attr, @canvas),
-                element.attr,
-              ]
+            make_image_from_file(element, content) do |src_file, prop|
+              Ext::BlockDiag.make_image(src_file.path, prop, @canvas)
+            end
+          when "mermaid"
+            make_image_from_file(element,
+                                 content,
+                                 extension: ".mmd") do |src_file, prop|
+              [src_file.path, prop]
             end
           else
             logger = @canvas.logger
@@ -355,23 +357,11 @@ module Rabbit
           alt = options.delete("alt")
           caption = title || alt
           options["caption"] ||= caption if caption
-          if options["align"] == "right"
-            body = @slides.last.body
-            if body["background-image"]
-              raise ParseError,
-                    _("multiple ![]('XXX.png'){:align='right'} " + \
-                      "isn't supported.")
-            end
-            body["background-image"] = uri
-            options.each do |name, value|
-              name = name.to_s.gsub(/_/, "-")
-              body["background-image-#{name}"] = value
-            end
-            :no_element
-          else
-            image = Ext::Image.make_image(@canvas, uri, options)
-            image || text(alt || src)
-          end
+          image = Ext::Image.make_image(@canvas,
+                                        uri,
+                                        options,
+                                        body: @slides.last.body)
+          image || text(alt || src)
         end
 
         def convert_em(element)
@@ -382,10 +372,20 @@ module Rabbit
           Emphasis.new(Emphasis.new(convert_container(element)))
         end
 
+        def make_image_from_file(element, source, **options)
+          Ext::Image.make_image_from_file(@canvas,
+                                          source,
+                                          body: @slides.last.body,
+                                          **options) do |src_file|
+            prop = element.attr
+            image = yield(src_file, prop)
+            [image, prop]
+          end
+        end
+
         def convert_math(element)
-          args = [@canvas, element.value]
-          Ext::Image.make_image_from_file(*args) do |src_file_path|
-            [Ext::TeX.make_image_by_LaTeX(src_file_path, {}, @canvas), {}]
+          make_image_from_file(element, element.value) do |src_file, prop|
+            Ext::TeX.make_image_by_LaTeX(src_file.path, prop, @canvas)
           end
         end
 

@@ -1,4 +1,4 @@
-# Copyright (C) 2007-2018  Kouhei Sutou <kou@cozmixng.org>
+# Copyright (C) 2007-2022  Sutou Kouhei <kou@cozmixng.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,31 +27,58 @@ module Rabbit
     module Ext
       module Image
         module_function
-        def make_image(canvas, uri_str, prop={})
+        def make_image(canvas, uri_str, prop={}, body: nil)
           path = Private.uri_string_to_image_filename(canvas, uri_str)
           begin
-            Element::Image.new(path, prop)
+            image = Element::Image.new(path, prop, canvas: canvas)
           rescue Error
             canvas.logger.warn($!.message)
             nil
+          else
+            if prop["align"] == "right" and body
+              if body["background-image"]
+                raise ParseError,
+                      _("multiple right aligns aren't supported.")
+              end
+              prop.each do |name, value|
+                name = name.gsub(/_/, "-")
+                next if name == "src"
+                property_name = "background-image-#{name}"
+                body[property_name] = value
+              end
+              body["background-image"] = uri_str
+              :no_element
+            else
+              image
+            end
           end
         end
 
-        def make_image_from_file(canvas, source)
-          src_file = Tempfile.new("rabbit-image-source")
+        def make_image_from_file(canvas, source, extension: nil, **options)
+          src_basename = "rabbit-image-source"
+          src_basename = [src_basename, extension] if extension
+          src_file = Tempfile.new(src_basename)
           src_file.open
           src_file.print(source)
           src_file.close
           image_file = prop = nil
           begin
-            image_file, prop = yield(src_file.path)
+            image_file, prop = yield(src_file)
           rescue ImageLoadError
             canvas.logger.warn($!.message)
           end
           return nil if image_file.nil?
-          image = make_image(canvas, %Q[file://#{image_file.path}], prop)
-          return nil if image.nil?
-          image["_src"] = image_file # for protecting from GC
+          image = make_image(canvas,
+                             "file://#{image_file.path}",
+                             prop,
+                             **options)
+          # Protect image from GC
+          case image
+          when Element::Image
+            image["_src"] = image_file
+          when :no_element
+            options[:body]["_background-image-src"] = image_file
+          end
           image
         end
 
