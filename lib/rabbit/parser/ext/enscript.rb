@@ -106,12 +106,38 @@ module Rabbit
           when "font"
             text = TextContainer.new
             color = element.get_attribute("color").to_s
+            color = change_color(color)
             text.add_default_prop("foreground", color)
             text
           else
             format = _("enscript: unsupported element name: %s")
             logger.warn(format % element.name)
             nil
+          end
+        end
+
+        def change_color(color)
+          case color
+          when "#0000FF" # identifier
+            "#00ff00"
+          when "#B22222" # comment
+            "#FFC0CB"
+          when "#228B22" # keyword
+            "#adff2f"
+          when "#060A0A" # special method
+            "#D3D3D3"
+          when "#060400" # @ivar
+            "#ff8c00"
+          when "#5F9EA0" # require
+            "#00bfff"
+          when "#5F9EA0" # def
+            "#ff8c00"
+          when "#A020F0" # def
+            "#ff8c00"
+          when "#BC8F8F" # String literal
+            "#fffacd"
+          else
+            color
           end
         end
       end
