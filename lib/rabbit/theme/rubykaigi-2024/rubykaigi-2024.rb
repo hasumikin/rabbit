@@ -31,7 +31,7 @@ white        = "#ffffff"
 @default_headline_line_expand = true
 
 @default_emphasis_color = red
-@default_emphasis_level2_color = "#ffffff"
+@default_emphasis_level2_color = red
 
 set_graffiti_color red
 set_graffiti_line_width 5
