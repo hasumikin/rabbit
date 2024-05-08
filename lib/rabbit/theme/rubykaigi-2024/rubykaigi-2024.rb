@@ -160,3 +160,10 @@ match("**", PreformattedBlock) do |block|
   block.prop_set("foreground", black)
 end
 
+match Slide do |s|
+  s.each do |slide|
+    if slide.match?(/hide-title/)
+      slide.horizontal_centering = true
+    end
+  end
+end
