@@ -6,9 +6,9 @@ add_image_path("rubykaigi-2024-images")
 @x_large_font_size = screen_size(6 * Pango::SCALE)
 @large_font_size = screen_size(5 * Pango::SCALE)
 @normal_font_size = screen_size(4 * Pango::SCALE)
-@small_font_size = screen_size(3 * Pango::SCALE)
-@x_small_font_size = screen_size(2.5 * Pango::SCALE)
-@xx_small_font_size = screen_size(2 * Pango::SCALE)
+@small_font_size = screen_size(3.5 * Pango::SCALE)
+@x_small_font_size = screen_size(3.3 * Pango::SCALE)
+@xx_small_font_size = screen_size(3 * Pango::SCALE)
 
 @font_family = find_font_family('Poppins')
 @monospace_font_family = 'Courier Prime'
